@@ -82,25 +82,39 @@ app.post("/login/", async (request, response) => {
 });
 
 //change-password API
-app.put("/change-password/", async (request, response) => {
+app.put("/change-password", async (request, response) => {
   const { username, oldPassword, newPassword } = request.body;
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  const selectPasswordQuery = `SELECT * FROM user WHERE password = '${newPassword}'`;
-  const dbPassword = await db.get(selectPasswordQuery);
-  if (dbPassword.length < 5) {
+  const selectUserQuery = `SELECT * FROM user WHERE username = '${username}';`;
+  const dbUser = await db.get(selectUserQuery);
+  if (dbUser === undefined) {
     response.status(400);
-    response.send("Password is too short");
+    response.send("Invalid user");
   } else {
     const isPasswordMatched = await bcrypt.compare(
-      newPassword,
-      dbPassword.newPassword
+      oldPassword,
+      dbUser.password
     );
-    if (isPasswordMatched === false) {
+    if (isPasswordMatched === true) {
+      if (validatePassword(newPassword)) {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updatePasswordQuery = `
+          UPDATE
+            user
+          SET
+            password = '${hashedPassword}'
+          WHERE
+            username = '${username}';`;
+
+        const user = await db.run(updatePasswordQuery);
+
+        response.send("Password updated");
+      } else {
+        response.status(400);
+        response.send("Password is too short");
+      }
+    } else {
       response.status(400);
       response.send("Invalid current password");
-    } else {
-      response.status(200);
-      response.send("Password updated");
     }
   }
 });
